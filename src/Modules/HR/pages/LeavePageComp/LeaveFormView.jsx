@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Button,
+  Select,
   Title,
   Box,
   Grid,
@@ -8,13 +9,37 @@ import {
   Badge,
   Divider,
   Anchor,
+  NumberInput,
+  FileInput,
+  Group,
+  TextInput,
+  Textarea,
   Table,
-  SimpleGrid,
 } from "@mantine/core";
+import {
+  Pencil,
+  FloppyDisk,
+  Trash,
+  PaperPlaneRight,
+  ArrowBendUpRight,
+  XCircle,
+  CheckCircle,
+  FileArchive,
+  FileText,
+  Table as TableIcon,
+  User,
+  Tag,
+  IdentificationCard,
+  Building,
+  Calendar,
+  ClipboardText,
+  UserList,
+} from "@phosphor-icons/react";
 import { useNavigate, useParams } from "react-router-dom";
 import HrBreadcrumbs from "../../components/HrBreadcrumbs";
 import LoadingComponent from "../../components/Loading";
 import { EmptyTable } from "../../components/tables/EmptyTable";
+import SearchAndSelectUser from "../../components/SearchAndSelectUser";
 import {
   get_leave_form_by_id,
   download_leave_form_pdf,
@@ -28,6 +53,35 @@ const LeaveFormView = () => {
   const navigate = useNavigate();
   const admin = new URLSearchParams(window.location.search).get("admin");
   const [exampleItems, setExampleItems] = useState([]);
+
+  // State for editable mode
+  const [isEditable, setIsEditable] = useState(false);
+
+  // State for editable fields
+  const [editedStationLeave, setEditedStationLeave] = useState({
+    stationLeave: false,
+    stationLeaveStartDate: "",
+    stationLeaveEndDate: "",
+    stationLeaveAddress: "",
+  });
+  const [file, setFile] = useState(null);
+  const [removeExistingFile, setRemoveExistingFile] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userList, setUserList] = useState([]);
+
+  // State for all editable leave balances
+  const [editedBalances, setEditedBalances] = useState({
+    casualLeave: 0,
+    vacationLeave: 0,
+    earnedLeave: 0,
+    commutedLeave: 0,
+    specialCasualLeave: 0,
+    restrictedHoliday: 0,
+    halfPayLeave: 0,
+    maternityLeave: 0,
+    childCareLeave: 0,
+    paternityLeave: 0,
+  });
 
   useEffect(() => {
     if (admin) {
@@ -51,44 +105,197 @@ const LeaveFormView = () => {
     }
   }, [admin]);
 
+  // Initialize all editable fields when data is fetched
   useEffect(() => {
-    const fetchFormData = async () => {
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        console.error("No authentication token found!");
-        setLoading(false);
+    if (fetchedformData) {
+      setEditedBalances({
+        casualLeave: fetchedformData.casualLeave || 0,
+        vacationLeave: fetchedformData.vacationLeave || 0,
+        earnedLeave: fetchedformData.earnedLeave || 0,
+        commutedLeave: fetchedformData.commutedLeave || 0,
+        specialCasualLeave: fetchedformData.specialCasualLeave || 0,
+        restrictedHoliday: fetchedformData.restrictedHoliday || 0,
+        halfPayLeave: fetchedformData.halfPayLeave || 0,
+        maternityLeave: fetchedformData.maternityLeave || 0,
+        childCareLeave: fetchedformData.childCareLeave || 0,
+        paternityLeave: fetchedformData.paternityLeave || 0,
+      });
+
+      setEditedStationLeave({
+        stationLeave: fetchedformData.stationLeave || false,
+        stationLeaveStartDate: fetchedformData.stationLeaveStartDate || "",
+        stationLeaveEndDate: fetchedformData.stationLeaveEndDate || "",
+        stationLeaveAddress: fetchedformData.stationLeaveAddress || "",
+      });
+    }
+  }, [fetchedformData]);
+
+  const handleBalanceChange = (fieldName, value) => {
+    setEditedBalances((prev) => ({
+      ...prev,
+      [fieldName]: value,
+    }));
+  };
+
+  const handleStationLeaveChange = (field, value) => {
+    setEditedStationLeave((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleFileChange = (file) => {
+    setFile(file);
+    if (file) {
+      setRemoveExistingFile(false);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setRemoveExistingFile(true);
+    setFile(null);
+  };
+
+  const handleEditClick = () => {
+    setIsEditable(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditable(false);
+    // Reset to original values
+    if (fetchedformData) {
+      setEditedBalances({
+        casualLeave: fetchedformData.casualLeave || 0,
+        vacationLeave: fetchedformData.vacationLeave || 0,
+        earnedLeave: fetchedformData.earnedLeave || 0,
+        commutedLeave: fetchedformData.commutedLeave || 0,
+        specialCasualLeave: fetchedformData.specialCasualLeave || 0,
+        restrictedHoliday: fetchedformData.restrictedHoliday || 0,
+        halfPayLeave: fetchedformData.halfPayLeave || 0,
+        maternityLeave: fetchedformData.maternityLeave || 0,
+        childCareLeave: fetchedformData.childCareLeave || 0,
+        paternityLeave: fetchedformData.paternityLeave || 0,
+      });
+
+      setEditedStationLeave({
+        stationLeave: fetchedformData.stationLeave || false,
+        stationLeaveStartDate: fetchedformData.stationLeaveStartDate || "",
+        stationLeaveEndDate: fetchedformData.stationLeaveEndDate || "",
+        stationLeaveAddress: fetchedformData.stationLeaveAddress || "",
+      });
+
+      setFile(null);
+      setRemoveExistingFile(false);
+    }
+  };
+
+  const handleUpdateAndForward = async () => {
+    try {
+      if (!selectedUser) {
+        alert("Please select a user to forward the form to");
         return;
       }
 
-      try {
-        const response = await fetch(`${get_leave_form_by_id}/${id}`, {
-          headers: { Authorization: `Token ${token}` },
-        });
-
-        if (!response.ok) {
-          throw new Error("Network response was not ok");
-        }
-
-        const data = await response.json();
-        // Adjust status for null responsibilities
-        const adjustedData = {
-          ...data.leave_form,
-          academicResponsibilityStatus: data.leave_form.academicResponsibility
-            ? data.leave_form.academicResponsibilityStatus
-            : "Accepted",
-          administrativeResponsibilityStatus: data.leave_form
-            .administrativeResponsibility
-            ? data.leave_form.administrativeResponsibilityStatus
-            : "Accepted",
-        };
-        setFetchedFormData(adjustedData);
-        setLoading(false);
-      } catch (error) {
-        console.error("Failed to fetch form data:", error);
-        setLoading(false);
+      const token = localStorage.getItem("authToken");
+      if (!token) {
+        console.error("No authentication token found!");
+        return;
       }
-    };
 
+      // Prepare form data for submission
+      const formData = new FormData();
+      formData.append("casualLeave", editedBalances.casualLeave);
+      formData.append("vacationLeave", editedBalances.vacationLeave);
+      formData.append("earnedLeave", editedBalances.earnedLeave);
+      formData.append("commutedLeave", editedBalances.commutedLeave);
+      formData.append("specialCasualLeave", editedBalances.specialCasualLeave);
+      formData.append("restrictedHoliday", editedBalances.restrictedHoliday);
+      formData.append("halfPayLeave", editedBalances.halfPayLeave);
+      formData.append("maternityLeave", editedBalances.maternityLeave);
+      formData.append("childCareLeave", editedBalances.childCareLeave);
+      formData.append("paternityLeave", editedBalances.paternityLeave);
+
+      formData.append("stationLeave", editedStationLeave.stationLeave);
+      formData.append(
+        "stationLeaveStartDate",
+        editedStationLeave.stationLeaveStartDate,
+      );
+      formData.append(
+        "stationLeaveEndDate",
+        editedStationLeave.stationLeaveEndDate,
+      );
+      formData.append(
+        "stationLeaveAddress",
+        editedStationLeave.stationLeaveAddress,
+      );
+
+      if (file) {
+        formData.append("file", file);
+      }
+      formData.append("removeExistingFile", removeExistingFile);
+      formData.append("forwardTo", selectedUser);
+
+      // TODO: Replace with your actual API endpoint
+      const response = await fetch(`/api/leave_forms/${id}/update/`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Token ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update leave form");
+      }
+
+      const data = await response.json();
+      console.log("Update successful:", data);
+      setIsEditable(false);
+      // Optionally refresh the data
+      fetchFormData();
+    } catch (error) {
+      console.error("Error updating leave form:", error);
+    }
+  };
+
+  const fetchFormData = async () => {
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      console.error("No authentication token found!");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${get_leave_form_by_id}/${id}`, {
+        headers: { Authorization: `Token ${token}` },
+      });
+
+      if (!response.ok) {
+        throw new Error("Network response was not ok");
+      }
+
+      const data = await response.json();
+      // Adjust status for null responsibilities
+      const adjustedData = {
+        ...data.leave_form,
+        academicResponsibilityStatus: data.leave_form.academicResponsibility
+          ? data.leave_form.academicResponsibilityStatus
+          : "Accepted",
+        administrativeResponsibilityStatus: data.leave_form
+          .administrativeResponsibility
+          ? data.leave_form.administrativeResponsibilityStatus
+          : "Accepted",
+      };
+      setFetchedFormData(adjustedData);
+      setLoading(false);
+    } catch (error) {
+      console.error("Failed to fetch form data:", error);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchFormData();
   }, [id]);
 
@@ -119,6 +326,39 @@ const LeaveFormView = () => {
     }
   };
 
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) {
+          console.error("No authentication token found!");
+          return;
+        }
+
+        const response = await fetch("/api/users/", {
+          headers: { Authorization: `Token ${token}` },
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch users");
+        }
+
+        const data = await response.json();
+        const formattedUsers = data.map((user) => ({
+          value: user.id,
+          label: `${user.name} (${user.designation})`,
+        }));
+        setUserList(formattedUsers);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+      }
+    };
+
+    if (isEditable) {
+      fetchUsers();
+    }
+  }, [isEditable]);
+
   if (loading) {
     return <LoadingComponent />;
   }
@@ -134,42 +374,90 @@ const LeaveFormView = () => {
 
   // Leave balances table data
   const leaveBalances = [
-    { type: "Casual Leave", balance: fetchedformData.casualLeaveBalance },
+    {
+      type: "Casual Leave",
+      balance: fetchedformData.casualLeaveBalance,
+      applied: editedBalances.casualLeave,
+    },
     {
       type: "Special Casual Leave",
       balance: fetchedformData.special_casual_leaveBalance,
+      applied: editedBalances.specialCasualLeave,
     },
-    { type: "Earned Leave", balance: fetchedformData.earned_leaveBalance },
-    { type: "Half Pay Leave", balance: fetchedformData.half_pay_leaveBalance },
+    {
+      type: "Earned Leave",
+      balance: fetchedformData.earned_leaveBalance,
+      applied: editedBalances.earnedLeave,
+    },
+    {
+      type: "Half Pay Leave",
+      balance: fetchedformData.half_pay_leaveBalance,
+      applied: editedBalances.halfPayLeave,
+    },
     {
       type: "Maternity Leave",
       balance: fetchedformData.maternity_leaveBalance,
+      applied: editedBalances.maternityLeave,
     },
     {
       type: "Child Care Leave",
       balance: fetchedformData.child_care_leaveBalance,
+      applied: editedBalances.childCareLeave,
     },
     {
       type: "Paternity Leave",
       balance: fetchedformData.paternity_leaveBalance,
+      applied: editedBalances.paternityLeave,
     },
-  ];
+  ].map((leave) => {
+    const balance = parseFloat(leave.balance) || 0;
+    return {
+      ...leave,
+      balance: balance,
+    };
+  });
 
-  // Leave types applied data
-  const leaveTypesApplied = [
-    { type: "Casual Leave", applied: fetchedformData.casualLeave },
-    { type: "Vacation Leave", applied: fetchedformData.vacationLeave },
-    { type: "Earned Leave", applied: fetchedformData.earnedLeave },
-    { type: "Commuted Leave", applied: fetchedformData.commutedLeave },
+  const leaveApplications = [
+    {
+      type: "Casual Leave",
+      applied: editedBalances.casualLeave,
+    },
+    {
+      type: "Vacation Leave",
+      applied: editedBalances.vacationLeave,
+    },
+    {
+      type: "Earned Leave",
+      applied: editedBalances.earnedLeave,
+    },
+    {
+      type: "Commuted Leave",
+      applied: editedBalances.commutedLeave,
+    },
     {
       type: "Special Casual Leave",
-      applied: fetchedformData.specialCasualLeave,
+      applied: editedBalances.specialCasualLeave,
     },
-    { type: "Restricted Holiday", applied: fetchedformData.restrictedHoliday },
-    { type: "Half Pay Leave", applied: fetchedformData.halfPayLeave },
-    { type: "Maternity Leave", applied: fetchedformData.maternityLeave },
-    { type: "Child Care Leave", applied: fetchedformData.childCareLeave },
-    { type: "Paternity Leave", applied: fetchedformData.paternityLeave },
+    {
+      type: "Restricted Holiday",
+      applied: editedBalances.restrictedHoliday,
+    },
+    {
+      type: "Half Pay Leave",
+      applied: editedBalances.halfPayLeave,
+    },
+    {
+      type: "Maternity Leave",
+      applied: editedBalances.maternityLeave,
+    },
+    {
+      type: "Child Care Leave",
+      applied: editedBalances.childCareLeave,
+    },
+    {
+      type: "Paternity Leave",
+      applied: editedBalances.paternityLeave,
+    },
   ];
 
   return (
@@ -183,9 +471,25 @@ const LeaveFormView = () => {
           borderRadius: "8px",
         }}
       >
-        <Title order={2} style={{ fontWeight: "500", marginBottom: "20px" }}>
-          Leave Form Details
-        </Title>
+        {/* In the Group position="apart" section where the title is */}
+
+        <Group position="apart" mb="md">
+          <Title order={2} style={{ fontWeight: "500" }}>
+            Leave Form Details
+          </Title>
+
+          {/* Changed this to always show the edit button for testing */}
+          {!isEditable && (
+            <Button
+              leftIcon={<Pencil size={18} />}
+              onClick={handleEditClick}
+              variant="outline"
+            >
+              Edit
+            </Button>
+          )}
+        </Group>
+
         <Grid>
           <Grid.Col span={6}>
             <Text>
@@ -241,7 +545,7 @@ const LeaveFormView = () => {
             backgroundColor: "#f9f9f9",
           }}
         >
-          {/* Employee Details */}
+          {/* Employee Details (non-editable) */}
           <Title order={4} style={{ marginTop: "30px" }}>
             Employee Details
           </Title>
@@ -289,7 +593,7 @@ const LeaveFormView = () => {
             </Grid.Col>
           </Grid>
 
-          {/* Leave Details */}
+          {/* Leave Details (non-editable) */}
           <Title order={4} mt="xl" style={{ marginTop: "30px" }}>
             Leave Details
           </Title>
@@ -318,9 +622,9 @@ const LeaveFormView = () => {
             </Grid.Col>
           </Grid>
 
-          {/* Combined Leave Types and Balances Section */}
-          <Title order={4} mt="xl" style={{ marginTop: "30px" }}>
-            Leave Type Details
+          {/* Leave Types and Balances Section */}
+          <Title order={4} mt="xl">
+            Leave Types and Balances
           </Title>
           <Divider my="sm" />
           <Grid gutter="xl">
@@ -357,15 +661,12 @@ const LeaveFormView = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {leaveTypesApplied.map((leave, index) => (
+                  {leaveApplications.map((leave, index) => (
                     <tr
                       key={`applied-${index}`}
                       style={{
                         backgroundColor:
                           index % 2 === 0 ? "#ffffff" : "#e8e8e8",
-                        "&:hover": {
-                          backgroundColor: "#f1f3f5",
-                        },
                       }}
                     >
                       <td
@@ -382,6 +683,7 @@ const LeaveFormView = () => {
                           padding: "8px",
                           border: "1px solid #ccc",
                           textAlign: "center",
+                          fontWeight: leave.applied > 0 ? "bold" : "normal",
                         }}
                       >
                         {leave.applied || "0"}
@@ -394,7 +696,7 @@ const LeaveFormView = () => {
 
             <Grid.Col span={6} style={{ paddingLeft: "24px" }}>
               <Title order={5} mb="sm" style={{ textAlign: "center" }}>
-                Leave Balances
+                All Leave Balances
               </Title>
               <Table>
                 <thead>
@@ -433,9 +735,6 @@ const LeaveFormView = () => {
                         style={{
                           backgroundColor:
                             index % 2 === 0 ? "#ffffff" : "#e8e8e8",
-                          "&:hover": {
-                            backgroundColor: "#f1f3f5",
-                          },
                         }}
                       >
                         <td
@@ -471,13 +770,72 @@ const LeaveFormView = () => {
             </Grid.Col>
           </Grid>
 
-          {/* Station Leave */}
-          {fetchedformData.stationLeave && (
+          {/* Station Leave Section */}
+          <Title order={4} mt="xl" style={{ marginTop: "30px" }}>
+            Station Leave Details
+          </Title>
+          <Divider my="sm" />
+          {isEditable ? (
             <>
-              <Title order={4} mt="xl" style={{ marginTop: "30px" }}>
-                Station Leave Details
-              </Title>
-              <Divider my="sm" />
+              <Grid gutter="lg" style={{ padding: "0 20px" }}>
+                <Grid.Col span={12}>
+                  <Select
+                    label="Station Leave"
+                    value={editedStationLeave.stationLeave ? "yes" : "no"}
+                    onChange={(value) =>
+                      handleStationLeaveChange("stationLeave", value === "yes")
+                    }
+                    data={[
+                      { value: "yes", label: "Yes" },
+                      { value: "no", label: "No" },
+                    ]}
+                  />
+                </Grid.Col>
+
+                {editedStationLeave.stationLeave && (
+                  <>
+                    <Grid.Col span={6}>
+                      <TextInput
+                        label="Station Leave Start Date"
+                        value={editedStationLeave.stationLeaveStartDate}
+                        onChange={(e) =>
+                          handleStationLeaveChange(
+                            "stationLeaveStartDate",
+                            e.target.value,
+                          )
+                        }
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={6}>
+                      <TextInput
+                        label="Station Leave End Date"
+                        value={editedStationLeave.stationLeaveEndDate}
+                        onChange={(e) =>
+                          handleStationLeaveChange(
+                            "stationLeaveEndDate",
+                            e.target.value,
+                          )
+                        }
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={12}>
+                      <Textarea
+                        label="Address During Station Leave"
+                        value={editedStationLeave.stationLeaveAddress}
+                        onChange={(e) =>
+                          handleStationLeaveChange(
+                            "stationLeaveAddress",
+                            e.target.value,
+                          )
+                        }
+                      />
+                    </Grid.Col>
+                  </>
+                )}
+              </Grid>
+            </>
+          ) : (
+            fetchedformData.stationLeave && (
               <Grid gutter="lg" style={{ padding: "0 20px" }}>
                 <Grid.Col span={6}>
                   <Text>
@@ -498,10 +856,10 @@ const LeaveFormView = () => {
                   </Text>
                 </Grid.Col>
               </Grid>
-            </>
+            )
           )}
 
-          {/* Responsibility Transfer - Only show if at least one exists */}
+          {/* Responsibility Transfer (non-editable) */}
           {(fetchedformData.academicResponsibility ||
             fetchedformData.administrativeResponsibility) && (
             <>
@@ -517,11 +875,11 @@ const LeaveFormView = () => {
                       {fetchedformData.academicResponsibility}
                     </Text>
                     <Text style={{ marginBottom: "10px" }}>
-                      <strong>Designation:</strong>{" "}
+                      <strong>Academic Responsibility Designation:</strong>{" "}
                       {fetchedformData.academicResponsibilityDesignation}
                     </Text>
                     <Text style={{ marginBottom: "10px" }}>
-                      <strong>Status:</strong>{" "}
+                      <strong>Academic Responsibility Status:</strong>{" "}
                       <Badge
                         color={
                           fetchedformData.academicResponsibilityStatus ===
@@ -545,11 +903,13 @@ const LeaveFormView = () => {
                       {fetchedformData.administrativeResponsibility}
                     </Text>
                     <Text style={{ marginBottom: "10px" }}>
-                      <strong>Designation:</strong>{" "}
+                      <strong>
+                        Administrative Responsibility Designation:
+                      </strong>{" "}
                       {fetchedformData.administrativeResponsibilityDesignation}
                     </Text>
                     <Text style={{ marginBottom: "10px" }}>
-                      <strong>Status:</strong>{" "}
+                      <strong>Administrative Responsibility Status:</strong>{" "}
                       <Badge
                         color={
                           fetchedformData.administrativeResponsibilityStatus ===
@@ -570,27 +930,88 @@ const LeaveFormView = () => {
             </>
           )}
 
-          {/* Attachments */}
+          {/* Attachments Section */}
           <Title order={4} mt="xl">
             Attachments
           </Title>
           <Divider my="sm" />
           <Grid gutter="lg" style={{ padding: "0 20px" }}>
-            <Grid.Col span={6}>
-              <Text>
-                <strong>Attached PDF:</strong>{" "}
-                {fetchedformData.attachedPdfName ? (
-                  <Anchor onClick={handleDownloadPdf} download>
-                    {fetchedformData.attachedPdfName}
-                  </Anchor>
-                ) : (
-                  "No file attached"
-                )}
-              </Text>
+            <Grid.Col span={12}>
+              {isEditable ? (
+                <>
+                  {fetchedformData.attachedPdfName && !removeExistingFile && (
+                    <Group mb="sm">
+                      <Text>
+                        <strong>Current File:</strong>{" "}
+                        {fetchedformData.attachedPdfName}
+                      </Text>
+                      <Button
+                        variant="outline"
+                        color="red"
+                        size="xs"
+                        leftIcon={<Trash size={14} />}
+                        onClick={handleRemoveFile}
+                      >
+                        Remove
+                      </Button>
+                    </Group>
+                  )}
+                  <FileInput
+                    label="Upload new file"
+                    placeholder="Select file"
+                    value={file}
+                    onChange={handleFileChange}
+                    accept="application/pdf"
+                  />
+                </>
+              ) : (
+                <Text>
+                  <strong>Attached PDF:</strong>{" "}
+                  {fetchedformData.attachedPdfName ? (
+                    <Anchor onClick={handleDownloadPdf} download>
+                      {fetchedformData.attachedPdfName}
+                    </Anchor>
+                  ) : (
+                    "No file attached"
+                  )}
+                </Text>
+              )}
             </Grid.Col>
           </Grid>
 
-          {/* Forward Application */}
+          {/* Action Buttons */}
+          {isEditable ? (
+            <>
+              <Title order={4} mt="xl">
+                Forward To
+              </Title>
+              <Divider my="sm" />
+              <Grid gutter="lg" style={{ padding: "0 20px" }}>
+                <Grid.Col span={12}>
+                  <SearchAndSelectUser
+                    onUserSelect={(user) => setSelectedUser(user)}
+                  />
+                </Grid.Col>
+              </Grid>
+              <Group position="right" mt="xl">
+                <Button
+                  variant="outline"
+                  color="red"
+                  onClick={handleCancelEdit}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleUpdateAndForward}
+                  leftIcon={<FloppyDisk size={18} />}
+                >
+                  Update and Forward
+                </Button>
+              </Group>
+            </>
+          ) : null}
+
+          {/* Forward Application Section (non-editable) */}
           {fetchedformData.status === "Pending" &&
             (fetchedformData.academicResponsibilityStatus === "Pending" ||
               fetchedformData.administrativeResponsibilityStatus ===
@@ -617,7 +1038,7 @@ const LeaveFormView = () => {
               </>
             )}
 
-          {/* Approval */}
+          {/* Approval Section (non-editable) */}
           {fetchedformData.status === "Accepted" &&
             fetchedformData.approvedBy && (
               <>

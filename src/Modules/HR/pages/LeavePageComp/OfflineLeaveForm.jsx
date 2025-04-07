@@ -11,22 +11,20 @@ import {
 } from "@mantine/core";
 import {
   get_employee_initials,
-  get_form_initials,
   submit_leave_form,
 } from "../../../../routes/hr";
-// import "../../HR/pages/LeavePageComp/LeaveForm.css";
 import "../LeavePageComp/LeaveForm.css";
 import SearchAndSelectUser from "../../components/SearchAndSelectUser";
 import { useNavigate } from "react-router-dom";
 
-const LeaveForm = () => {
+const OfflineLeaveForm = () => {
   // --- Form and Leave states ---
   const [stationLeave, setStationLeave] = useState(false);
   const [academicResponsibility, setAcademicResponsibility] = useState(null);
   const [administrativeResponsibility, setAdministrativeResponsibility] =
     useState(null);
   const [forwardTo, setForwardTo] = useState(null);
-  const [attachedPdf, setAttachedPdf] = useState(null); // For attached PDF file
+  const [attachedPdf, setAttachedPdf] = useState(null);
 
   const [formData, setFormData] = useState({
     leaveStartDate: "",
@@ -38,24 +36,26 @@ const LeaveForm = () => {
     commutedLeave: "0",
     specialCasualLeave: "0",
     restrictedHoliday: "0",
+    halfPayLeave: "0",
+    maternityLeave: "0",
+    childCareLeave: "0",
+    paternityLeave: "0",
     remarks: "",
     stationLeaveStartDate: "",
     stationLeaveEndDate: "",
     stationLeaveAddress: "",
   });
+
   const today = new Date().toISOString().split("T")[0];
   const navigate = useNavigate();
   const [activeSubmit, setActiveSubmit] = useState(true);
 
   // --- Employee Details states ---
-  // This will hold the search-selected employee (used for identification)
   const [selectedEmployee, setSelectedEmployee] = useState(null);
-  // This will populate after an API call fetches full details (except the designation)
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Updated function: fetch employee details for the selected employee
   const fetchEmployeeDetails = async (employeeId) => {
     setLoading(true);
     setError(null);
@@ -66,7 +66,6 @@ const LeaveForm = () => {
       return;
     }
     try {
-      // Call the endpoint with the employee id in the URL
       const response = await fetch(`${get_employee_initials}/${employeeId}`, {
         headers: { Authorization: `Token ${token}` },
       });
@@ -83,15 +82,11 @@ const LeaveForm = () => {
     }
   };
 
-  // When an employee is selected via the search component,
-  // update the selectedEmployee and fetch the additional details.
-  // Note: We assume that the user object returned by the search component includes a "designation" property.
   const handleEmployeeSelect = (user) => {
     setSelectedEmployee(user);
     fetchEmployeeDetails(user.id);
   };
 
-  // --- Other handlers remain unchanged ---
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -111,17 +106,15 @@ const LeaveForm = () => {
 
   const handleSubmit = async () => {
     setActiveSubmit(false);
+
     // Validation Checks
     if (
       !formData.leaveStartDate ||
       !formData.leaveEndDate ||
       !formData.purpose ||
-      !formData.remarks ||
-      !academicResponsibility ||
-      !administrativeResponsibility ||
       !forwardTo
     ) {
-      alert("All fields are required!");
+      alert("Required fields: Leave dates, purpose, and forward to!");
       setActiveSubmit(true);
       return;
     }
@@ -147,7 +140,12 @@ const LeaveForm = () => {
       "commutedLeave",
       "specialCasualLeave",
       "restrictedHoliday",
+      "halfPayLeave",
+      "maternityLeave",
+      "childCareLeave",
+      "paternityLeave",
     ];
+
     for (const field of leaveFields) {
       if (!/^\d+$/.test(formData[field])) {
         alert(
@@ -158,80 +156,71 @@ const LeaveForm = () => {
       }
     }
 
-    // Prepare the form data for submission
-    const finalFormData = new FormData();
-    // Use details fetched from the API for the employee fields, but override designation with that from the search component.
-    finalFormData.append("name", details.name);
-    finalFormData.append(
-      "designation",
-      selectedEmployee?.designation || details.last_selected_role,
-    );
-    finalFormData.append("pfno", details.pfno);
-    finalFormData.append("department", details.department);
-    finalFormData.append("date", today);
-    finalFormData.append("leaveStartDate", formData.leaveStartDate);
-    finalFormData.append("leaveEndDate", formData.leaveEndDate);
-    finalFormData.append("purpose", formData.purpose);
-    finalFormData.append("casualLeave", formData.casualLeave);
-    finalFormData.append("vacationLeave", formData.vacationLeave);
-    finalFormData.append("earnedLeave", formData.earnedLeave);
-    finalFormData.append("commutedLeave", formData.commutedLeave);
-    finalFormData.append("specialCasualLeave", formData.specialCasualLeave);
-    finalFormData.append("restrictedHoliday", formData.restrictedHoliday);
-    finalFormData.append("remarks", formData.remarks);
-    finalFormData.append("stationLeave", stationLeave);
-    finalFormData.append(
-      "stationLeaveStartDate",
-      formData.stationLeaveStartDate,
-    );
-    finalFormData.append("stationLeaveEndDate", formData.stationLeaveEndDate);
-    finalFormData.append("stationLeaveAddress", formData.stationLeaveAddress);
-    finalFormData.append("academicResponsibility", academicResponsibility.id);
-    finalFormData.append(
-      "academicResponsibility_designation",
-      academicResponsibility.designation,
-    );
-    finalFormData.append(
-      "administrativeResponsibility",
-      administrativeResponsibility.id,
-    );
-    finalFormData.append(
-      "administrativeResponsibility_designation",
-      administrativeResponsibility.designation,
-    );
-    finalFormData.append("forwardTo", forwardTo.id);
-    finalFormData.append("forwardTo_designation", forwardTo.designation);
-    if (attachedPdf) {
-      finalFormData.append("attached_pdf", attachedPdf);
-    }
+    // Prepare the data object to be logged
+    const submissionData = {
+      employeeDetails: {
+        name: details?.name,
+        designation:
+          selectedEmployee?.designation || details?.last_selected_role,
+        pfno: details?.pfno,
+        department: details?.department,
+        date: today,
+      },
+      leaveDetails: {
+        leaveStartDate: formData.leaveStartDate,
+        leaveEndDate: formData.leaveEndDate,
+        purpose: formData.purpose,
+        casualLeave: formData.casualLeave,
+        vacationLeave: formData.vacationLeave,
+        earnedLeave: formData.earnedLeave,
+        commutedLeave: formData.commutedLeave,
+        specialCasualLeave: formData.specialCasualLeave,
+        restrictedHoliday: formData.restrictedHoliday,
+        halfPayLeave: formData.halfPayLeave,
+        maternityLeave: formData.maternityLeave,
+        childCareLeave: formData.childCareLeave,
+        paternityLeave: formData.paternityLeave,
+        remarks: formData.remarks || "N/A",
+      },
+      stationLeave: {
+        isStationLeave: stationLeave,
+        stationLeaveStartDate: formData.stationLeaveStartDate,
+        stationLeaveEndDate: formData.stationLeaveEndDate,
+        stationLeaveAddress: formData.stationLeaveAddress,
+      },
+      responsibilityTransfer: {
+        academicResponsibility: academicResponsibility
+          ? {
+              id: academicResponsibility.id,
+              name: academicResponsibility.name,
+              designation: academicResponsibility.designation,
+            }
+          : null,
+        administrativeResponsibility: administrativeResponsibility
+          ? {
+              id: administrativeResponsibility.id,
+              name: administrativeResponsibility.name,
+              designation: administrativeResponsibility.designation,
+            }
+          : null,
+      },
+      forwardTo: forwardTo
+        ? {
+            id: forwardTo.id,
+            name: forwardTo.name,
+            designation: forwardTo.designation,
+          }
+        : null,
+      attachedPdf: attachedPdf ? attachedPdf.name : null,
+    };
 
-    try {
-      // Debug: Log FormData contents
-      for (let [key, value] of finalFormData.entries()) {
-        console.log(key, value);
-      }
-      const token = localStorage.getItem("authToken");
-      const response = await fetch(submit_leave_form, {
-        method: "POST",
-        headers: {
-          Authorization: `Token ${token}`,
-        },
-        body: finalFormData,
-      });
-      if (!response.ok) {
-        setActiveSubmit(true);
-        throw new Error(`Error submitting form: ${response.statusText}`);
-      }
-      const result = await response.json();
-      alert("Form submitted successfully!");
-      setActiveSubmit(true);
-      navigate("/hr/leave/leaverequests");
-      console.log("Form submission result:", result);
-    } catch (err) {
-      console.error("Form submission failed:", err.message);
-      alert("Form submission failed. Please try again.");
-      setActiveSubmit(true);
-    }
+    // Log the data to console instead of submitting
+    console.log("Form submission data:", submissionData);
+
+    // Show success message
+    alert("Form data logged to console (simulated submission)");
+    setActiveSubmit(true);
+    navigate("/hr/leave/leaverequests");
   };
 
   return (
@@ -244,17 +233,17 @@ const LeaveForm = () => {
       }}
     >
       {/* Section: Employee Selection */}
-      <Title order={4}>Select Employee </Title>
+      <Title order={4}>Select Employee</Title>
       <SearchAndSelectUser onUserSelect={handleEmployeeSelect} />
 
-      {/* Conditionally render the "Your Details" section after an employee is selected */}
+      {/* Conditionally render the "Employee Details" section after an employee is selected */}
       {selectedEmployee && (
         <>
           <br />
           <Title order={4}>Employee Details</Title>
           {loading && <p>Loading employee details...</p>}
           {error && <p style={{ color: "red" }}>{error}</p>}
-          {/* Only show details if they have been fetched successfully */}
+
           {details && (
             <Grid gutter="lg" style={{ padding: "0 20px" }}>
               <Grid.Col span={6}>
@@ -269,8 +258,7 @@ const LeaveForm = () => {
                 <TextInput
                   label="Designation"
                   value={
-                    // Use designation from the selected user object first
-                    (selectedEmployee && selectedEmployee.designation) ||
+                    selectedEmployee?.designation ||
                     details.last_selected_role ||
                     "N/A"
                   }
@@ -297,26 +285,24 @@ const LeaveForm = () => {
               <Grid.Col span={6}>
                 <TextInput
                   label="Date"
-                  placeholder="Select or enter today's date"
                   type="date"
                   defaultValue={today}
-                  required
+                  disabled
                   style={{ maxWidth: "300px" }}
                 />
               </Grid.Col>
             </Grid>
           )}
-          {/* <p style={{ color: "#023f60" }}>
-            Note: If your details are not correct, please contact HR Admin.
-          </p> */}
-          <br />
         </>
       )}
 
       {/* Section 2: Leave Details */}
+      <br />
       <Title order={4} sx={{ marginBottom: "20px" }}>
         Leave Details
       </Title>
+      <br />
+
       <Grid gutter="lg" style={{ padding: "0 20px" }}>
         <Grid.Col span={4}>
           <TextInput
@@ -354,98 +340,140 @@ const LeaveForm = () => {
 
         {/* Number of Leaves Fields */}
         <Grid.Col span={12}>
-          {/* <p style={{ color: "#023f60" }}>
-            Note: Please check your leave balance before applying to avoid
-            rejection
-          </p> */}
+          <p style={{ color: "#023f60" }}>
+            Note: &nbsp; Please check your leave balance before applying to
+            avoid rejection
+          </p>
         </Grid.Col>
+
+        {/* Original leave types */}
         <Grid.Col span={4}>
           <TextInput
-            label="No. of Casual Leave During Period"
+            label="No. of Casual Leave"
             name="casualLeave"
             value={formData.casualLeave}
             onChange={handleInputChange}
             type="number"
             placeholder="0"
-            required
             style={{ maxWidth: "300px" }}
           />
         </Grid.Col>
         <Grid.Col span={4}>
           <TextInput
-            label="No. of Vacation Leave During Period"
+            label="No. of Vacation Leave"
             name="vacationLeave"
             value={formData.vacationLeave}
             onChange={handleInputChange}
             type="number"
             placeholder="0"
-            required
             style={{ maxWidth: "300px" }}
           />
         </Grid.Col>
         <Grid.Col span={4}>
           <TextInput
-            label="No. of Earned Leave During Period"
+            label="No. of Earned Leave"
             name="earnedLeave"
             value={formData.earnedLeave}
             onChange={handleInputChange}
             type="number"
             placeholder="0"
-            required
             style={{ maxWidth: "300px" }}
           />
         </Grid.Col>
         <Grid.Col span={4}>
           <TextInput
-            label="No. of Commuted Leave During Period"
+            label="No. of Commuted Leave"
             name="commutedLeave"
             value={formData.commutedLeave}
             onChange={handleInputChange}
             type="number"
             placeholder="0"
-            required
             style={{ maxWidth: "300px" }}
           />
         </Grid.Col>
         <Grid.Col span={4}>
           <TextInput
-            label="No. of Special Casual Leave During Period"
+            label="No. of Special Casual Leave"
             name="specialCasualLeave"
             value={formData.specialCasualLeave}
             onChange={handleInputChange}
             type="number"
             placeholder="0"
-            required
             style={{ maxWidth: "300px" }}
           />
         </Grid.Col>
         <Grid.Col span={4}>
           <TextInput
-            label="No. of Restricted Holiday During Period"
+            label="No. of Restricted Holiday"
             name="restrictedHoliday"
             value={formData.restrictedHoliday}
             onChange={handleInputChange}
             type="number"
             placeholder="0"
-            required
             style={{ maxWidth: "300px" }}
           />
         </Grid.Col>
+
+        {/* New leave types */}
+        <Grid.Col span={4}>
+          <TextInput
+            label="No. of Half Pay Leave"
+            name="halfPayLeave"
+            value={formData.halfPayLeave}
+            onChange={handleInputChange}
+            type="number"
+            placeholder="0"
+            style={{ maxWidth: "300px" }}
+          />
+        </Grid.Col>
+        <Grid.Col span={4}>
+          <TextInput
+            label="No. of Maternity Leave"
+            name="maternityLeave"
+            value={formData.maternityLeave}
+            onChange={handleInputChange}
+            type="number"
+            placeholder="0"
+            style={{ maxWidth: "300px" }}
+          />
+        </Grid.Col>
+        <Grid.Col span={4}>
+          <TextInput
+            label="No. of Child Care Leave"
+            name="childCareLeave"
+            value={formData.childCareLeave}
+            onChange={handleInputChange}
+            type="number"
+            placeholder="0"
+            style={{ maxWidth: "300px" }}
+          />
+        </Grid.Col>
+        <Grid.Col span={4}>
+          <TextInput
+            label="No. of Paternity Leave"
+            name="paternityLeave"
+            value={formData.paternityLeave}
+            onChange={handleInputChange}
+            type="number"
+            placeholder="0"
+            style={{ maxWidth: "300px" }}
+          />
+        </Grid.Col>
+
         <Grid.Col span={12}>
           <Textarea
-            label="Remarks (if not any enter N/A)"
+            label="Remarks (optional)"
             name="remarks"
             value={formData.remarks}
             onChange={handleInputChange}
             placeholder="Enter remarks if any"
-            required
             style={{ maxWidth: "800px" }}
           />
         </Grid.Col>
-        {/* File Attachment Field */}
+
         <Grid.Col span={12}>
           <TextInput
-            label="Attach Supporting Document (PDF)"
+            label="Attach Supporting Document (PDF, optional)"
             type="file"
             accept=".pdf"
             onChange={handleFileChange}
@@ -453,14 +481,14 @@ const LeaveForm = () => {
           />
         </Grid.Col>
       </Grid>
-      <br />
 
       {/* Subsection: Station Leave */}
+      <br />
       <Checkbox
         label="Do you want to take station leave?"
         checked={stationLeave}
         onChange={(e) => setStationLeave(e.currentTarget.checked)}
-        sx={{ margin: "20px 0" }}
+        stule={{ margin: "20px 0" }}
       />
       <br />
       {stationLeave && (
@@ -472,6 +500,7 @@ const LeaveForm = () => {
               value={formData.stationLeaveStartDate}
               onChange={handleInputChange}
               type="date"
+              required={stationLeave}
               style={{ maxWidth: "300px" }}
             />
           </Grid.Col>
@@ -482,6 +511,7 @@ const LeaveForm = () => {
               value={formData.stationLeaveEndDate}
               onChange={handleInputChange}
               type="date"
+              required={stationLeave}
               style={{ maxWidth: "300px" }}
             />
           </Grid.Col>
@@ -492,29 +522,31 @@ const LeaveForm = () => {
               value={formData.stationLeaveAddress}
               onChange={handleInputChange}
               placeholder="Enter address"
+              required={stationLeave}
               style={{ maxWidth: "800px" }}
             />
           </Grid.Col>
         </Grid>
       )}
 
-      {/* Section 3: Responsibility Transfer */}
+      {/* Section 3: Responsibility Transfer (optional) */}
       <br />
       <Title order={4} sx={{ marginBottom: "20px" }}>
-        Responsibility Transfer During Period
+        Responsibility Transfer During Period (optional)
       </Title>
       <Grid gutter="lg" style={{ padding: "0 20px" }}>
         <Grid.Col span={6}>
           <Title order={6} style={{ marginBottom: "10px", marginTop: "20px" }}>
-            Academic Responsibility
+            Academic Responsibility (optional)
           </Title>
           <SearchAndSelectUser
             onUserSelect={(user) => setAcademicResponsibility(user)}
           />
         </Grid.Col>
+
         <Grid.Col span={6}>
           <Title order={6} style={{ marginBottom: "10px", marginTop: "20px" }}>
-            Administrative Responsibility
+            Administrative Responsibility (optional)
           </Title>
           <SearchAndSelectUser
             onUserSelect={(user) => setAdministrativeResponsibility(user)}
@@ -546,4 +578,4 @@ const LeaveForm = () => {
   );
 };
 
-export default LeaveForm;
+export default OfflineLeaveForm;
